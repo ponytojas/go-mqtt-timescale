@@ -40,20 +40,70 @@ type TimescaleConfig struct {
 	TableName string `mapstructure:"table_name"`
 }
 
-// LoadConfig loads configuration from file
+// LoadConfig loads configuration from file and/or environment variables
 func LoadConfig(path string) (*Config, error) {
+	// Set default values first (lowest precedence)
+	defaultConfig := GetDefaultConfig()
+	viper.SetDefault("mqtt.broker", defaultConfig.MQTT.Broker)
+	viper.SetDefault("mqtt.port", defaultConfig.MQTT.Port)
+	viper.SetDefault("mqtt.client_id", defaultConfig.MQTT.ClientID)
+	viper.SetDefault("mqtt.topic", defaultConfig.MQTT.Topic)
+	viper.SetDefault("mqtt.username", defaultConfig.MQTT.Username)
+	viper.SetDefault("mqtt.password", defaultConfig.MQTT.Password)
+
+	viper.SetDefault("database.host", defaultConfig.Database.Host)
+	viper.SetDefault("database.port", defaultConfig.Database.Port)
+	viper.SetDefault("database.user", defaultConfig.Database.User)
+	viper.SetDefault("database.password", defaultConfig.Database.Password)
+	viper.SetDefault("database.dbname", defaultConfig.Database.DBName)
+	viper.SetDefault("database.sslmode", defaultConfig.Database.SSLMode)
+
+	viper.SetDefault("timescale.table_name", defaultConfig.Timescale.TableName)
+
+	// Try to load from config file (medium precedence)
 	viper.AddConfigPath(path)
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 
-	// Set up environment variable mappings
+	// Set up environment variable support (highest precedence)
 	viper.SetEnvPrefix("") // No prefix
+	// Keep backward compatibility with MQTT_BROKER_URL
 	viper.BindEnv("mqtt.broker", "MQTT_BROKER_URL")
+
+	// Map all configuration keys to environment variables
+	// Example: mqtt.broker -> MQTT_BROKER
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
 	viper.AutomaticEnv()
 
+	// Explicitly bind all environment variables to ensure they work
+	// MQTT configuration
+	viper.BindEnv("mqtt.broker", "MQTT_BROKER")
+	viper.BindEnv("mqtt.port", "MQTT_PORT")
+	viper.BindEnv("mqtt.client_id", "MQTT_CLIENT_ID")
+	viper.BindEnv("mqtt.topic", "MQTT_TOPIC")
+	viper.BindEnv("mqtt.username", "MQTT_USERNAME")
+	viper.BindEnv("mqtt.password", "MQTT_PASSWORD")
+
+	// Database configuration
+	viper.BindEnv("database.host", "DATABASE_HOST")
+	viper.BindEnv("database.port", "DATABASE_PORT")
+	viper.BindEnv("database.user", "DATABASE_USER")
+	viper.BindEnv("database.password", "DATABASE_PASSWORD")
+	viper.BindEnv("database.dbname", "DATABASE_DBNAME")
+	viper.BindEnv("database.sslmode", "DATABASE_SSLMODE")
+
+	// Timescale configuration
+	viper.BindEnv("timescale.table_name", "TIMESCALE_TABLE_NAME")
+
+	// Try to read config file, but don't fail if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
-		return nil, fmt.Errorf("error reading config file: %w", err)
+		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
+			// Config file was found but another error was produced
+			log.Printf("Warning: error reading config file: %v", err)
+		} else {
+			log.Println("No config file found, using environment variables and defaults")
+		}
+		// We'll continue with environment variables and defaults
 	}
 
 	var config Config
@@ -71,7 +121,7 @@ func GetDefaultConfig() *Config {
 			Broker:   "https://mqtt.ponytojas.dev", // Updated default
 			Port:     8883,                         // Updated default port for TLS
 			ClientID: "go-mqtt-client",
-			Topic:    "sensors/data",
+			Topic:    "sensor/#",
 			Username: "",
 			Password: "",
 		},
