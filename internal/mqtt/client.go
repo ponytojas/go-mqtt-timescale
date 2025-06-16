@@ -126,6 +126,11 @@ func (c *Client) processMessage(payload []byte) {
 	temperature, _ := getFloat64Value(rawData, "temperature")
 	humidity, _ := getFloat64Value(rawData, "humidity")
 	light, _ := getFloat64Value(rawData, "light")
+	device_id, ok := rawData["device_id"].(string)
+	if !ok {
+		log.Println("Error: device_id is missing or not a string")
+		return
+	}
 
 	// Create sensor data
 	sensorData := &models.SensorData{
@@ -133,6 +138,7 @@ func (c *Client) processMessage(payload []byte) {
 		Temperature: temperature,
 		Humidity:    humidity,
 		Light:       light,
+		Device_ID:   device_id,
 	}
 
 	// Insert into database

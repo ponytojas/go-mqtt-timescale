@@ -63,6 +63,7 @@ func (db *TimescaleDB) InitializeTable() error {
 				temperature DOUBLE PRECISION,
 				humidity DOUBLE PRECISION,
 				light DOUBLE PRECISION
+				device_id TEXT NOT NULL,
 			)
 		`, tableName))
 
@@ -93,9 +94,9 @@ func (db *TimescaleDB) InsertSensorData(data *models.SensorData) error {
 	tableName := db.config.Timescale.TableName
 
 	_, err := db.conn.Exec(ctx, fmt.Sprintf(`
-		INSERT INTO %s (time, temperature, humidity, light)
-		VALUES ($1, $2, $3, $4)
-	`, tableName), data.Timestamp, data.Temperature, data.Humidity, data.Light)
+		INSERT INTO %s (time, temperature, humidity, light, device_id)
+		VALUES ($1, $2, $3, $4, $5)
+	`, tableName), data.Timestamp, data.Temperature, data.Humidity, data.Light, data.Device_ID)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert sensor data: %w", err)
