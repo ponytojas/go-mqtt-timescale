@@ -141,6 +141,11 @@ func (c *Client) processMessage(payload []byte) {
 		Device_ID:   device_id,
 	}
 
+	if light == 0 {
+		log.Println("Ignoring sensor data with light = 0")
+		return
+	}
+
 	// Insert into database
 	if err := c.db.InsertSensorData(sensorData); err != nil {
 		log.Printf("Error inserting sensor data: %v", err)
