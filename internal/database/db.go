@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 
@@ -62,8 +63,8 @@ func (db *TimescaleDB) InitializeTable() error {
 				time TIMESTAMPTZ NOT NULL,
 				temperature DOUBLE PRECISION,
 				humidity DOUBLE PRECISION,
-				light DOUBLE PRECISION
-				device_id TEXT NOT NULL,
+				light DOUBLE PRECISION,
+				device_id TEXT NOT NULL
 			)
 		`, tableName))
 
@@ -73,7 +74,7 @@ func (db *TimescaleDB) InitializeTable() error {
 
 		// Convert to hypertable
 		_, err = db.conn.Exec(ctx, fmt.Sprintf(`
-			SELECT create_hypertable('%s', 'time')
+			SELECT create_hypertable('%s', 'time', if_not_exists => TRUE)
 		`, tableName))
 
 		if err != nil {
@@ -93,7 +94,18 @@ func (db *TimescaleDB) InsertSensorData(data *models.SensorData) error {
 	ctx := context.Background()
 	tableName := db.config.Timescale.TableName
 
-	_, err := db.conn.Exec(ctx, fmt.Sprintf(`
+	// Verbose logging of the insert statement and parameters for diagnostics
+	log.Printf(
+		"DB INSERT -> table=%s time=%s temperature=%.3f humidity=%.3f light=%.3f device_id=%s",
+		tableName,
+		data.Timestamp.UTC().Format(time.RFC3339),
+		data.Temperature,
+		data.Humidity,
+		data.Light,
+		data.Device_ID,
+	)
+
+	cmdTag, err := db.conn.Exec(ctx, fmt.Sprintf(`
 		INSERT INTO %s (time, temperature, humidity, light, device_id)
 		VALUES ($1, $2, $3, $4, $5)
 	`, tableName), data.Timestamp, data.Temperature, data.Humidity, data.Light, data.Device_ID)
@@ -101,6 +113,8 @@ func (db *TimescaleDB) InsertSensorData(data *models.SensorData) error {
 	if err != nil {
 		return fmt.Errorf("failed to insert sensor data: %w", err)
 	}
+
+	log.Printf("DB INSERT affected rows: %d", cmdTag.RowsAffected())
 
 	return nil
 }

@@ -141,6 +141,14 @@ func GetDefaultConfig() *Config {
 
 // GetDBConnString returns the database connection string
 func (c *Config) GetDBConnString() string {
+	// log the URI
+	log.Printf("Connecting to database at 'host=%s port=%d user=%s dbname=%s sslmode=%s'",
+		c.Database.Host,
+		c.Database.Port,
+		c.Database.User,
+		c.Database.DBName,
+		c.Database.SSLMode,
+	)
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.Database.Host,
 		c.Database.Port,
@@ -154,19 +162,19 @@ func (c *Config) GetDBConnString() string {
 // GetMQTTBrokerURL returns the MQTT broker URL
 func (c *Config) GetMQTTBrokerURL() string {
 	brokerURL := c.MQTT.Broker
-	
+
 	// If the URL already has a protocol, use it as is
-	if strings.HasPrefix(brokerURL, "tcp://") || 
-	   strings.HasPrefix(brokerURL, "ssl://") || 
-	   strings.HasPrefix(brokerURL, "ws://") || 
-	   strings.HasPrefix(brokerURL, "wss://") {
+	if strings.HasPrefix(brokerURL, "tcp://") ||
+		strings.HasPrefix(brokerURL, "ssl://") ||
+		strings.HasPrefix(brokerURL, "ws://") ||
+		strings.HasPrefix(brokerURL, "wss://") {
 		// If there's no port in the URL, add the default port
 		if !strings.Contains(brokerURL[6:], ":") {
 			brokerURL = fmt.Sprintf("%s:%d", brokerURL, c.MQTT.Port)
 		}
 		return brokerURL
 	}
-	
+
 	// Handle http:// and https:// protocols by converting to mqtt protocols
 	if strings.HasPrefix(brokerURL, "http://") {
 		host := brokerURL[7:]
@@ -175,7 +183,7 @@ func (c *Config) GetMQTTBrokerURL() string {
 		}
 		return fmt.Sprintf("tcp://%s", host)
 	}
-	
+
 	if strings.HasPrefix(brokerURL, "https://") {
 		host := brokerURL[8:]
 		if !strings.Contains(host, ":") {
@@ -183,7 +191,7 @@ func (c *Config) GetMQTTBrokerURL() string {
 		}
 		return fmt.Sprintf("ssl://%s", host)
 	}
-	
+
 	// If no protocol is specified, use tcp:// with the configured port
 	log.Printf("No protocol specified in broker URL '%s', defaulting to tcp://", brokerURL)
 	return fmt.Sprintf("tcp://%s:%d", brokerURL, c.MQTT.Port)

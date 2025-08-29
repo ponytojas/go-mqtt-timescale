@@ -54,7 +54,6 @@ func main() {
 	}
 
 	log.Printf("Service is running. Subscribed to topic: %s", cfg.MQTT.Topic)
-	log.Println("Press Ctrl+C to exit.")
 
 	// Wait for interrupt signal
 	sig := make(chan os.Signal, 1)

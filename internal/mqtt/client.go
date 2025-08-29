@@ -26,8 +26,23 @@ type Client struct {
 func NewClient(cfg *config.Config, db *database.TimescaleDB) (*Client, error) {
 	opts := mqtt.NewClientOptions()
 	brokerURL := cfg.GetMQTTBrokerURL()
+	log.Printf("Connecting to MQTT broker at %s", brokerURL)
 	opts.AddBroker(brokerURL)
 	opts.SetClientID(cfg.MQTT.ClientID)
+
+	opts.SetCleanSession(false) // keep subscriptions/session state
+	opts.SetResumeSubs(true)    // auto-resubscribe after reconnect
+	opts.SetOrderMatters(false) // better throughput
+	opts.SetKeepAlive(30 * time.Second)
+	opts.SetPingTimeout(10 * time.Second)
+	opts.SetWriteTimeout(10 * time.Second)
+	opts.SetConnectRetry(true)
+	opts.SetConnectRetryInterval(2 * time.Second)
+
+	if cfg.MQTT.Username != "" {
+		opts.SetUsername(cfg.MQTT.Username)
+		opts.SetPassword(cfg.MQTT.Password)
+	}
 
 	// Configure TLS if using SSL or HTTPS
 	if strings.HasPrefix(brokerURL, "ssl://") || strings.HasPrefix(brokerURL, "wss://") {
@@ -63,7 +78,10 @@ func NewClient(cfg *config.Config, db *database.TimescaleDB) (*Client, error) {
 // Connect connects to the MQTT broker
 func (c *Client) Connect() error {
 	token := c.client.Connect()
-	if token.Wait() && token.Error() != nil {
+	if !token.WaitTimeout(10 * time.Second) {
+		return fmt.Errorf("MQTT connect timeout to %s", c.config.GetMQTTBrokerURL())
+	}
+	if token.Error() != nil {
 		return fmt.Errorf("failed to connect to MQTT broker: %w", token.Error())
 	}
 	log.Printf("Connected to MQTT broker: %s", c.config.GetMQTTBrokerURL())
@@ -148,12 +166,12 @@ func (c *Client) processMessage(payload []byte) {
 
 	// Insert into database
 	if err := c.db.InsertSensorData(sensorData); err != nil {
-		log.Printf("Error inserting sensor data: %v", err)
+		log.Printf("Error inserting sensor data for device_id=%s: %v", device_id, err)
 		return
 	}
 
-	log.Printf("Successfully processed and stored sensor data: time=%v, temp=%.2f, humidity=%.2f, light=%.2f",
-		timestamp, temperature, humidity, light)
+	log.Printf("Stored sensor data: device_id=%s time=%s temp=%.2f humidity=%.2f light=%.2f",
+		device_id, timestamp.Format(time.RFC3339), temperature, humidity, light)
 }
 
 // getFloat64Value safely extracts a float64 value from the map
