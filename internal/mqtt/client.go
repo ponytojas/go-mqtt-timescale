@@ -1,6 +1,7 @@
 package mqtt
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
@@ -10,20 +11,20 @@ import (
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/ponytojas/go-mqtt-timescale/config"
-	"github.com/ponytojas/go-mqtt-timescale/internal/database"
 	"github.com/ponytojas/go-mqtt-timescale/internal/models"
+	"github.com/ponytojas/go-mqtt-timescale/internal/supabase"
 )
 
 // Client handles MQTT connection and message processing
 type Client struct {
 	client   mqtt.Client
-	db       *database.TimescaleDB
+	supabase *supabase.Client
 	config   *config.Config
 	stopChan chan struct{}
 }
 
 // NewClient creates a new MQTT client
-func NewClient(cfg *config.Config, db *database.TimescaleDB) (*Client, error) {
+func NewClient(cfg *config.Config, supabaseClient *supabase.Client) (*Client, error) {
 	opts := mqtt.NewClientOptions()
 	brokerURL := cfg.GetMQTTBrokerURL()
 	log.Printf("Connecting to MQTT broker at %s", brokerURL)
@@ -53,11 +54,6 @@ func NewClient(cfg *config.Config, db *database.TimescaleDB) (*Client, error) {
 		opts.SetTLSConfig(tlsConfig)
 	}
 
-	if cfg.MQTT.Username != "" {
-		opts.SetUsername(cfg.MQTT.Username)
-		opts.SetPassword(cfg.MQTT.Password)
-	}
-
 	opts.SetAutoReconnect(true)
 	opts.SetConnectionLostHandler(func(client mqtt.Client, err error) {
 		log.Printf("Connection lost: %v", err)
@@ -69,7 +65,7 @@ func NewClient(cfg *config.Config, db *database.TimescaleDB) (*Client, error) {
 	client := mqtt.NewClient(opts)
 	return &Client{
 		client:   client,
-		db:       db,
+		supabase: supabaseClient,
 		config:   cfg,
 		stopChan: make(chan struct{}),
 	}, nil
@@ -119,7 +115,7 @@ func (c *Client) WaitForStop() {
 	<-c.stopChan
 }
 
-// processMessage processes an MQTT message and stores it in the database
+// processMessage processes an MQTT message and stores it through Supabase.
 func (c *Client) processMessage(payload []byte) {
 	var rawData map[string]interface{}
 	if err := json.Unmarshal(payload, &rawData); err != nil {
@@ -156,16 +152,11 @@ func (c *Client) processMessage(payload []byte) {
 		Temperature: temperature,
 		Humidity:    humidity,
 		Light:       light,
-		Device_ID:   device_id,
+		DeviceID:    device_id,
 	}
 
-	if light == 0 {
-		log.Println("Ignoring sensor data with light = 0")
-		return
-	}
-
-	// Insert into database
-	if err := c.db.InsertSensorData(sensorData); err != nil {
+	// Insert through Supabase's Data REST API.
+	if err := c.supabase.InsertSensorData(context.Background(), sensorData); err != nil {
 		log.Printf("Error inserting sensor data for device_id=%s: %v", device_id, err)
 		return
 	}

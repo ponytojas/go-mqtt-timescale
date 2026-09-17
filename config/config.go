@@ -10,9 +10,8 @@ import (
 
 // Config holds all configuration for the application
 type Config struct {
-	MQTT      MQTTConfig      `mapstructure:"mqtt"`
-	Database  DatabaseConfig  `mapstructure:"database"`
-	Timescale TimescaleConfig `mapstructure:"timescale"`
+	MQTT     MQTTConfig     `mapstructure:"mqtt"`
+	Supabase SupabaseConfig `mapstructure:"supabase"`
 }
 
 // MQTTConfig holds MQTT connection configuration
@@ -25,18 +24,11 @@ type MQTTConfig struct {
 	Password string `mapstructure:"password"`
 }
 
-// DatabaseConfig holds Postgres connection configuration
-type DatabaseConfig struct {
-	Host     string `mapstructure:"host"`
-	Port     int    `mapstructure:"port"`
-	User     string `mapstructure:"user"`
-	Password string `mapstructure:"password"`
-	DBName   string `mapstructure:"dbname"`
-	SSLMode  string `mapstructure:"sslmode"`
-}
-
-// TimescaleConfig holds Timescale specific configuration
-type TimescaleConfig struct {
+// SupabaseConfig holds the Data REST API settings and target table.
+type SupabaseConfig struct {
+	URL       string `mapstructure:"url"`
+	APIKey    string `mapstructure:"api_key"`
+	Schema    string `mapstructure:"schema"`
 	TableName string `mapstructure:"table_name"`
 }
 
@@ -51,14 +43,10 @@ func LoadConfig(path string) (*Config, error) {
 	viper.SetDefault("mqtt.username", defaultConfig.MQTT.Username)
 	viper.SetDefault("mqtt.password", defaultConfig.MQTT.Password)
 
-	viper.SetDefault("database.host", defaultConfig.Database.Host)
-	viper.SetDefault("database.port", defaultConfig.Database.Port)
-	viper.SetDefault("database.user", defaultConfig.Database.User)
-	viper.SetDefault("database.password", defaultConfig.Database.Password)
-	viper.SetDefault("database.dbname", defaultConfig.Database.DBName)
-	viper.SetDefault("database.sslmode", defaultConfig.Database.SSLMode)
-
-	viper.SetDefault("timescale.table_name", defaultConfig.Timescale.TableName)
+	viper.SetDefault("supabase.url", defaultConfig.Supabase.URL)
+	viper.SetDefault("supabase.api_key", defaultConfig.Supabase.APIKey)
+	viper.SetDefault("supabase.schema", defaultConfig.Supabase.Schema)
+	viper.SetDefault("supabase.table_name", defaultConfig.Supabase.TableName)
 
 	// Try to load from config file (medium precedence)
 	viper.AddConfigPath(path)
@@ -84,16 +72,11 @@ func LoadConfig(path string) (*Config, error) {
 	viper.BindEnv("mqtt.username", "MQTT_USERNAME")
 	viper.BindEnv("mqtt.password", "MQTT_PASSWORD")
 
-	// Database configuration
-	viper.BindEnv("database.host", "DATABASE_HOST")
-	viper.BindEnv("database.port", "DATABASE_PORT")
-	viper.BindEnv("database.user", "DATABASE_USER")
-	viper.BindEnv("database.password", "DATABASE_PASSWORD")
-	viper.BindEnv("database.dbname", "DATABASE_DBNAME")
-	viper.BindEnv("database.sslmode", "DATABASE_SSLMODE")
-
-	// Timescale configuration
-	viper.BindEnv("timescale.table_name", "TIMESCALE_TABLE_NAME")
+	// Supabase configuration
+	viper.BindEnv("supabase.url", "SUPABASE_URL")
+	viper.BindEnv("supabase.api_key", "SUPABASE_API_KEY")
+	viper.BindEnv("supabase.schema", "SUPABASE_SCHEMA")
+	viper.BindEnv("supabase.table_name", "SUPABASE_TABLE_NAME")
 
 	// Try to read config file, but don't fail if it doesn't exist
 	if err := viper.ReadInConfig(); err != nil {
@@ -125,38 +108,11 @@ func GetDefaultConfig() *Config {
 			Username: "",
 			Password: "",
 		},
-		Database: DatabaseConfig{
-			Host:     "localhost",
-			Port:     5432,
-			User:     "postgres",
-			Password: "postgres",
-			DBName:   "iot_data",
-			SSLMode:  "disable",
-		},
-		Timescale: TimescaleConfig{
+		Supabase: SupabaseConfig{
+			Schema:    "labtools",
 			TableName: "sensor_data",
 		},
 	}
-}
-
-// GetDBConnString returns the database connection string
-func (c *Config) GetDBConnString() string {
-	// log the URI
-	log.Printf("Connecting to database at 'host=%s port=%d user=%s dbname=%s sslmode=%s'",
-		c.Database.Host,
-		c.Database.Port,
-		c.Database.User,
-		c.Database.DBName,
-		c.Database.SSLMode,
-	)
-	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		c.Database.Host,
-		c.Database.Port,
-		c.Database.User,
-		c.Database.Password,
-		c.Database.DBName,
-		c.Database.SSLMode,
-	)
 }
 
 // GetMQTTBrokerURL returns the MQTT broker URL

@@ -7,12 +7,12 @@ import (
 	"syscall"
 
 	"github.com/ponytojas/go-mqtt-timescale/config"
-	"github.com/ponytojas/go-mqtt-timescale/internal/database"
 	"github.com/ponytojas/go-mqtt-timescale/internal/mqtt"
+	"github.com/ponytojas/go-mqtt-timescale/internal/supabase"
 )
 
 func main() {
-	log.Println("Starting MQTT to TimescaleDB service...")
+	log.Println("Starting MQTT to Supabase service...")
 
 	// Load configuration
 	cfg, err := config.LoadConfig(".")
@@ -21,23 +21,15 @@ func main() {
 		cfg = config.GetDefaultConfig()
 	}
 
-	// Initialize database connection
-	log.Println("Connecting to TimescaleDB...")
-	db, err := database.NewTimescaleDB(cfg)
+	log.Println("Configuring Supabase Data API client...")
+	supabaseClient, err := supabase.NewClient(cfg)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
-	}
-	defer db.Close()
-
-	// Initialize table
-	log.Println("Initializing database table...")
-	if err := db.InitializeTable(); err != nil {
-		log.Fatalf("Failed to initialize table: %v", err)
+		log.Fatalf("Failed to configure Supabase client: %v", err)
 	}
 
 	// Initialize MQTT client
 	log.Println("Setting up MQTT client...")
-	mqttClient, err := mqtt.NewClient(cfg, db)
+	mqttClient, err := mqtt.NewClient(cfg, supabaseClient)
 	if err != nil {
 		log.Fatalf("Failed to create MQTT client: %v", err)
 	}

@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.26-alpine AS builder
 
 WORKDIR /app
 
@@ -11,7 +11,7 @@ RUN go mod download
 COPY . .
 
 # Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o mqtt-timescale ./cmd
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o mqtt-supabase ./cmd
 
 # Final stage
 FROM alpine:3.18
@@ -25,10 +25,10 @@ RUN apk --no-cache add ca-certificates && \
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder /app/mqtt-timescale .
+COPY --from=builder /app/mqtt-supabase .
 
 # Switch to non-root user
 USER appuser
 
 # Command to run
-CMD ["./mqtt-timescale"]
+CMD ["./mqtt-supabase"]
